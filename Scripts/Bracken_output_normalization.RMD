@@ -1,0 +1,188 @@
+---
+title: "RPKM normalization for Bracken read count"
+author: "Tejus Shinde"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Background (RPKM Normalization)
+- Stands for Reads Per Kilobase of transcript per Million mapped reads.
+- This normalization involves 3 different steps: 
+  - **Normalization for Library Size** : Accounts for differences in samples. Normalize the read counts by the total number of mapped reads in the sample to get reads per million mapped reads (RPM) for each taxa/genome.
+  - **Normalization for Genome Length** : Account for the differences in genome length. Divide the RPM value by the length of the genome (in kilo-bases). This gives us the RPK values.
+  - **Scaling to Million**: To make it more interpretable and comparable across different samples. Scale the RPK values by a factor of 1,000,000 to obtain RPKM.
+
+Mathematically, the RPKM formula for a genome $G$ with length $L_{G}$ (in kilobases) and read count $C_{G}$ is: 
+  $$RPKM_{G} = (C_{G}/L_{G})*(10^6/\sum_{i=1}^{n} C_{i}) $$
+
+Where,
+
+  - $C_{G}=$ Count of reads mapped to Genome $G$.
+  
+  - $L_{G} =$ Length of Genome $G$ in KB.
+  
+  - $n=$ Total Number of Genomes.
+  
+  - $\sum_{i=1}^{n} C_{i}=$ Total number of mapped reads in the sample.
+
+
+### Input files
+  - Genome sizes (Metadata file fro Archaea & Bacteria)
+  - Merged Bracken output files
+  
+#### Step 1: Read Metadata file
+
+```{r ReadData}
+
+# we are interested in the few of these columns 
+MetaDataCols<-c(1, 14, 17)
+  #colnames(tempDF[MetaDataCols])
+
+# Read archaeal metadata file
+tempDF<- read.delim("ar53_metadata_r207.tsv", sep = '\t', header = T, na.strings = c('na', 'none'), fill = T)  
+  # subset archaeal metadata table
+  Archaea_MetaDF<-tempDF[,MetaDataCols]
+
+# Read bacterial metadata file
+tempDF<- read.delim("bac120_metadata_r207.tsv", sep = '\t', header = T, na.strings = c('na', 'none'), fill = T)
+
+  # subset bacterial metadata table
+  Bacteria_MetaDF<-tempDF[,MetaDataCols]
+
+# rbind both metadata files
+Merged_MetaDf<-rbind(Bacteria_MetaDF, Archaea_MetaDF)
+
+```
+
+  After selecting columns of interest, the metadata file looks like this now: 
+
+```{r echo=FALSE}
+# print the top lines of metadata file 
+  head(Merged_MetaDf)
+
+# garbage cleanup
+rm(Bacteria_MetaDF, Archaea_MetaDF, tempDF)
+
+```
+
+```{r Check_lineage, echo=FALSE}
+# Replace spaces with underscores in GTDB lineage column
+Merged_MetaDf$gtdb_taxonomy <- gsub(" ", "_", Merged_MetaDf$gtdb_taxonomy)
+
+```
+
+#### Step 2: Read Bracken file
+
+```{r ReadBrackenFile, echo=TRUE}
+# Read Merged Bracken feature table
+ProjectID='PRJEB29918'
+FileName=paste0('./MiPoRT_',ProjectID,'_BRACKEN_GTDB_species_FeatureTable.csv')
+
+if(file.exists(FileName)){
+  # preprocess the file since first 2 lines are comments with #
+# Open the file connection
+tempTXT <- file(FileName, "r")
+
+# Read the first line (comment line) and ignore it
+readLines(tempTXT, n = 1)
+
+# Read the second line (header line) and remove the leading '#'
+header_line <- gsub("^# ", "", readLines(tempTXT, n = 1))
+
+# Close the file connection
+close(tempTXT)
+
+# Read the remaining lines using read.table
+BrackenFeatureTable <- read.table(FileName, header = FALSE, skip = 2, sep = "\t", comment.char = "")
+
+# Set column names using the header line
+colnames(BrackenFeatureTable) <- strsplit(header_line, "\t")[[1]]
+}
+
+```
+
+```{r quickCheck, echo=FALSE}
+options(width = 150)
+head(BrackenFeatureTable[,1:3])
+# Print the data
+print(paste("Your Bracken feature table has ",dim(BrackenFeatureTable)[1], " number of taxa/features"," and ",dim(BrackenFeatureTable)[2], " samples"))
+
+```
+
+#### Step 3: Match taxa IDs and get genome lengths
+
+```{r MatchOTUs, echo=FALSE}
+
+# First we split the GTDB lineage column and get archaeal species
+Species_Info <-sapply(X=Merged_MetaDf$gtdb_taxonomy, FUN = function(eachLineage){
+  # split each string individually
+  SpeciesLv<-strsplit(eachLineage, ';')[[1]][7]
+  return(gsub("^s__", "", SpeciesLv))
+  }
+)
+
+# sanity check
+#length(Species_Info)
+
+# Match OTU_ID/ species names between the two data frames
+Get_indices <- sapply(BrackenFeatureTable$`OTU ID`, FUN = function(spLv){
+  
+  # if Bracken species is present in GTDB metadata file then give index
+  if(spLv %in% Species_Info){
+    index<-which(Species_Info == spLv)
+    # print info
+    print(paste0("Found sp:", spLv, " at index: ", index[1], " - ", Species_Info[index[1]], " & Genome Size: ", Merged_MetaDf$genome_size[index[1]]/1000, "KB"))
+    
+    return(as.numeric(index[1])) # Note: Here we take the first genome length found for this sp Name.
+  }else{
+      return("NA")
+    }
+  
+  })
+
+# Retrieve the Length values based on the matched indices
+BrackenFeatureTable$Length <- Merged_MetaDf$genome_size[as.vector(Get_indices)]
+
+```
+
+
+#### Calculate RPKM
+
+````{r RPKM_calculation}
+# featurecounts dF
+tempDF<-BrackenFeatureTable[, -c(1, dim(BrackenFeatureTable)[2])]
+
+# Calculate total reads per samples
+total_reads <- colSums(tempDF) # exclude the OTU ID & genome length cols
+
+# Calculate per million scaling factor (sequencing depth)
+scaling_factor <- total_reads / 1e6
+
+# Normalize read counts by the scaling factor
+normalized_FeatureTable <- t(t(tempDF) / scaling_factor)
+
+# Calculate RPKM values (based on Genome Length, kilobases)
+GenomeLen_kB<-BrackenFeatureTable$Length/1000
+rpkm_values <- round(normalized_FeatureTable / GenomeLen_kB)
+
+# Add the gene and length columns back
+rpkm_data <- cbind(BrackenFeatureTable[, c(1, dim(BrackenFeatureTable)[2])], rpkm_values)
+
+
+````
+
+```{r WriteOutput, echo=FALSE}
+
+# Write the result to a new CSV file
+ProjectID='PRJEB29918'
+OutputFileName=paste0('./MiPoRT_',ProjectID,'_BRACKEN_GTDB_species_RPKM_FeatureTable.tsv')
+
+write.table(rpkm_data, OutputFileName, row.names = FALSE, sep ='\t')
+print(paste0("Check file ", OutputFileName, " for RPKM normalized feature table. :)"))
+
+```
+
