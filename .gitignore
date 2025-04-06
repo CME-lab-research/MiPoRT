@@ -1,0 +1,22 @@
+# Specify files to not upload
+
+# Auxillary file folder
+Auxillary_files
+
+# Ignore raw data files
+.fastq.gz
+.bam
+.fasta
+
+# Ignore output figures
+#*.png
+#*.pdf
+
+# Ignore R  Python temporary files
+.Rhistory
+.Rproj.user
+.pyc
+__pycache__
+
+# Ignore other analysis
+Data/Bracken_input_files
