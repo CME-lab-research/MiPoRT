@@ -4,13 +4,14 @@
 Auxillary_files
 
 # Ignore raw data files
+Data/
 .fastq.gz
 .bam
 .fasta
 
 # Ignore output figures
-#*.png
-#*.pdf
+*.png
+*.pdf
 
 # Ignore R  Python temporary files
 .Rhistory
