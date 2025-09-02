@@ -1,6 +1,8 @@
 # MiPoRT (Microbial Profiling of the Respiratory Tract)
 MiPoRT study aims to study the microbial profiles and their ecology in the human respiratory tract. 
 
+This repository contains code and files to be shared for the research paper titled: **'Pan-microbiome analysis along the human respiratory axis reveals ecological continuum in health and collapse in disease'** 
+
 ## Abstract
 The MiPoRT (Microbial Profiling of the Respiratory Tract) project integrates over 4,000 metagenomic samples from the human respiratory tract to profile microbial communities across health and disease. This repository hosts the code, workflows, and processed outputs used in the MiPoRT study. Raw sequencing data are archived at ENA under accession PRJEB96845. Supplementary processed data and tables are available via [Add zenodo DOI].
 
