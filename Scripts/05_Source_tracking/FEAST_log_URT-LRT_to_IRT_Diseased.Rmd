@@ -1,0 +1,789 @@
+---
+title: "FEAST: Healthy URT/LRT to IRT (Diseased samples)"
+author: "Tejus Shinde"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r InstallDependencies, include=FALSE, eval=FALSE}
+# Run this code once before you run this analysis
+
+# install dependencies
+Packages <- c("Rcpp", "RcppArmadillo", "vegan", "dplyr", "reshape2", "gridExtra", "ggplot2", "ggthemes")
+install.packages(Packages)
+lapply(Packages, library, character.only = TRUE)
+
+# install packages
+devtools::install_github("cozygene/FEAST")
+
+```
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# Desktop path
+setwd("C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/02_URT-LRT_to_IRT/")
+
+# Laptop path
+#setwd("C:/Users/o_shinde/Nextcloud/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/02_URT-LRT_to_IRT")
+
+# Load the FEAST pckg
+require(FEAST)
+require(tidyverse)
+
+```
+
+
+## R Markdown
+
+- **FEAST** : fast expectation-maximization for microbial source tracking - a scalable algorithm for quantifying the origins of complex microbial communities. 
+
+This is a log for script running the tool FEAST, for the MiPORT dataset (diseased samples). 
+Withing this project we want to run source tracking to detect URT to LRT & IRT to LRT sample microbiol transfers. 
+
+- Requires 2 mandatory **input** files:
+    
+    - C - An m by n count matrix, where m is the number samples and n is the number of taxa.
+    - An m by 3 table, where m is the number of samples. The metadata table has three columns (i.e., ‘Env’, ‘SourceSink’, ‘id’).
+
+<br>
+- **Step 1**: Read metadata file and add factors
+
+```{r MakeMetadata_table, cache=TRUE, eval=FALSE}
+
+# Read metadata file
+Metadata_Df <- read.table("../../MetaPhlan4_results/Repeated_Measure_merged/All_Metaphlan4_metadata_RepeatedSamples.tsv", header = T, sep = "\t")
+
+```
+
+
+- **Step 2**: Make a metadata file from the study metadata for FEAST
+
+```{r preProcess_Metadata, eval=FALSE, include=FALSE}
+
+# Add factors and filter metadata for samples of interest
+  # Make a list of metadata cols to work with
+    Groups_Interest <- c("SampleID", "BioProject", "Health", "SampleTypev2", "RT_category", "PatientID", "Disease")
+
+  # 374 IRT samples as sink in total for Healthy 262, CF 53, Covid 59
+  # For sources, it's 19+694 = 713
+
+    table(Metadata_Df$Disease, Metadata_Df$RT_category, useNA = "ifany")
+ 
+  # Init disease of interest
+  Disease_of_interest <- c("Healthy", "Covid-19", "Cystic Fibrosis")
+
+# Filter Metadata for disease of interest
+    table(Metadata_Df$Disease, Metadata_Df$SampleTypev2 , useNA = "ifany")
+  
+  # Filter samples for disease of interest: Exclude other sampletypes?
+  Metadata_Df_filtered <- Metadata_Df %>%
+    filter(Disease %in% Disease_of_interest)
+    
+  # 374 (59+53+262) IRT samples 
+    table(Metadata_Df_filtered$Disease, Metadata_Df_filtered$SampleTypev2, useNA = "ifany")
+    
+      table(Metadata_Df_filtered$Disease, Metadata_Df_filtered$RT_category, useNA = "ifany")
+  
+  # IRT category and all these Disease samples are sink samples
+  # All RT category and healthy samples are our sources ().
+  
+  '
+                  IRT LRT URT
+  Covid-19         59 103   0
+  Cystic Fibrosis  53   0   0
+  Healthy         262  19 694
+  '
+    # out of which Sputum (N=68), Supraglottal (59), Tongue dorsum (N = 211)
+    table(Metadata_Df_filtered$RT_category, Metadata_Df_filtered$SampleTypev2 , useNA = "ifany")
+    
+    # Therefore, we have 68 sinks (which are all Sputum) samples
+    # according to RT cat
+    '
+          BAL Buccal mucosa Nasal swab Oral swab Other Saliva Sputum
+  IRT   0             0          0         0    36      0     68
+  LRT 122             0          0         0     0      0      0
+  URT   0           336         18       171     0    169      0
+     
+      Supraglottal Tongue dorsum
+  IRT           59           211
+  LRT            0             0
+  URT            0             0
+    '
+
+
+  table(Metadata_Df_filtered$SampleTypev2, useNA = 'ifany')
+  # Again, 68 samples are sinks
+  '
+          BAL Buccal mucosa    Nasal swab     Oral swab         Other 
+          122           336            18           171            36 
+       Saliva        Sputum  Supraglottal Tongue dorsum 
+          169            68            59           211 
+  '
+  
+  table(Metadata_Df_filtered$Disease, useNA = 'ifany')
+  
+  # And 975 Healthy - 15 Healthy sputum = 960 healthy samples are sources (19+336+18+171+36+169+211)
+  
+  table(Metadata_Df_filtered$Disease, Metadata_Df_filtered$SampleTypev2)
+  '
+                  BAL Buccal mucosa Nasal swab Oral swab Other Saliva
+  Covid-19        103             0          0         0     0      0
+  Cystic Fibrosis   0             0          0         0     0      0
+  Healthy          19           336         18       171    36    169
+                 
+                  Sputum Supraglottal Tongue dorsum
+  Covid-19             0           59             0
+  Cystic Fibrosis     53            0             0
+  Healthy             15            0           211
+  '
+  
+  # Samples retained, check counts
+    table(Metadata_Df_filtered$SampleTypev2, useNA = 'ifany')
+
+# Add factors to metadata
+    # Add factors for SampleTypev2
+    SamplingSite_Factor <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Supraglottal", "Sputum", "BAL", "Other")
+    SamplingSite_labels <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Supraglottal", "Sputum", "BAL", "Other")
+    
+    Metadata_Df_filtered$SampleTypev2 <- factor(Metadata_Df_filtered$SampleTypev2, 
+                                       levels = SamplingSite_Factor, 
+                                       labels = SamplingSite_labels)  
+    # sanity check
+    table(Metadata_Df_filtered$SampleTypev2, useNA = 'ifany')
+    # levels(Metadata_Df$SampleTypev2)
+
+    # Add factors for RT category
+    table(Metadata_Df_filtered$RT_category, useNA = 'ifany')
+    
+    RT_Cat_Factor <- c("URT", "IRT", "LRT")
+    RT_Cat_Labels <- c("Upper RT", "Intermediate RT", "Lower RT")
+    Metadata_Df_filtered$RT_category <- factor(Metadata_Df_filtered$RT_category , 
+                                      levels = RT_Cat_Factor,
+                                      labels = RT_Cat_Labels)
+    
+    # sanity check
+    # table(Metadata_Df$RT_category, useNA = 'ifany')
+    # levels(Metadata_Df$RT_category)
+    
+  # 1. Identify sinks and sources
+    # All Sputum (N=68) samples are sinks
+  sinks <- Metadata_Df_filtered %>%
+    filter(SampleTypev2 == "Sputum") %>%
+    mutate(SourceSink = "Sink",
+           id = row_number(),  # each sink gets a unique id
+           Env = SampleTypev2)
+  
+  # 2. All healthy samples and URT/LRT are sources
+  sources <- Metadata_Df_filtered %>% 
+    filter(SampleTypev2 != "Sputum",
+           Disease == "Healthy") %>%
+    mutate(SourceSink = "Source",   # Add a source value column
+           Env = SampleTypev2) %>%  # Add an Env value column. Usually Sample type/group  of interest
+    slice(rep(1:n(), each = nrow(sinks))) %>% # Add an ID and copy that set to the number of sinks that we have. 
+    mutate(id = rep(1:nrow(sinks), times = nrow(.) / nrow(sinks)))
+  # slice(): index rows by their (integer) locations. 
+  
+  # Combine into FEAST-compatible table
+  Feast_metadata <- bind_rows(
+    sinks %>% select(SampleID, Env, SourceSink, id, RT_category, Disease),
+    sources %>% select(SampleID, Env, SourceSink, id, RT_category, Disease)
+  )
+  
+    
+# We have 68 sputum samples as sinks and remaining 960 samples as sources. 960*68 = 65280 unique combinations
+  
+  # sanity check
+  table(Feast_metadata$SourceSink, useNA = 'ifany')
+  
+  '  Sink Source 
+    68  65280 '
+  # Drop unused levels from Env
+  table(Feast_metadata$Env, useNA = 'ifany')
+  Feast_metadata$Env <- droplevels(Feast_metadata$Env)
+
+  
+  # All sinks should be Sputum samples. No Sputum samples in sources.
+  table(Feast_metadata$Env, Feast_metadata$SourceSink, useNA = 'ifany')
+  '
+                 Sink Source
+  Nasal swab        0   1224
+  Buccal mucosa     0  22848
+  Oral swab         0  11628
+  Saliva            0  11492
+  Tongue dorsum     0  14348
+  Sputum           68      0
+  BAL               0   1292
+  Other             0   2448
+  '
+  
+  # All sources should be healthy
+  table(Feast_metadata$Disease, Feast_metadata$SourceSink, useNA = 'ifany')
+  '
+                   Sink Source
+  Cystic Fibrosis    53      0
+  Healthy            15  65280
+  '
+  
+  # Sanity check: sample types
+  table(Feast_metadata$Env, Feast_metadata$Disease, useNA = 'ifany')
+  '
+                  Cystic Fibrosis Healthy
+  Nasal swab                  0    1224
+  Buccal mucosa               0   22848
+  Oral swab                   0   11628
+  Saliva                      0   11492
+  Tongue dorsum               0   14348
+  Sputum                     53      15
+  BAL                         0    1292
+  Other                       0    2448
+  '
+  
+  # Total size for metadata should be
+  print(paste("#Sources-", nrow(sources), "+ #Sinks-", nrow(sinks), " = ",nrow(sinks) + nrow(sources)))
+  
+  # 65348
+  
+  # sanity check
+  table(Feast_metadata$id)
+  
+  # 4. Preview
+  head(Feast_metadata)
+  
+  # 5. save metadata
+  write.table(Feast_metadata, "./IRT_sink_metadata_All.txt",
+              sep = '\t', row.names = F, quote = F)
+  
+```
+
+- **Step 3.A**: Read metadata table file
+
+```{r fileReading}
+
+# Check point: You can start here
+  # Init vars
+
+# for desktop
+  Data_dir="C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/"
+
+# for laptop
+  Data_dir='C:/Users/o_shinde/Nextcloud/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/'
+  
+  # Add file names 
+  Metadata_fileName = paste0(Data_dir,"07_Source_tracking/02_URT-LRT_to_IRT/IRT_sink_metadata_All.txt")
+  Feature_fileName = paste0(Data_dir,"MetaPhlan4_results/Repeated_Measure_merged/All_Metaphlan4_species_merged_RepeatedSamples_batchCorrected.tsv")
+
+  # Read this metadata now
+  Feast_metadata <- read.table(Metadata_fileName,
+              sep = '\t', header = T)
+  
+  #Feast_metadata_sub <- Load_metadata(metadata_path = Feast_metadata)
+
+  # sanity check
+  table(Feast_metadata$Env, Feast_metadata$Disease, useNA = 'ifany')
+  '
+                  Covid-19 Healthy Lung cancer Pneumonia
+  Nasal swab           0    6210           0         0
+  Buccal mucosa        0  115920           0         0
+  Oral swab            0   58995           0         0
+  Saliva               0   58305           0         0
+  Tongue dorsum        0   72795           0         0
+  Sputum               0    5175           0         0
+  BAL                103      19          29       194
+  Other                0   12420           0         0
+  '
+
+```
+
+- **Step 3.B**: Read feature table file
+
+```{r Read_features, echo=TRUE}
+
+# Read feature table 
+if(file.exists(Feature_fileName)){
+    print("Reading abundance file...")
+    Feature_df <- read.table(Feature_fileName, sep = "\t", header = T, 
+                             check.names = F)
+    
+    # sanity check
+    print(paste("Feature table has", ncol(Feature_df), "number of species &", nrow(Feature_df), "number of samples."))
+    
+    Feature_df <- Load_CountMatrix(CountMatrix_path = Feature_fileName)
+    print(Feature_df[1:5,1:5])
+    
+    # Convert to pseudo-counts as FEAST expects pseudo-counts
+    Feature_df <- ceiling(1e5 * Feature_df)
+
+}
+
+# Check if all values are numeric
+  # sapply(Feature_df, class)
+  
+  # if not then do this
+  # Feature_df_int <- Feature_df_int %>%
+  #  mutate(across(everything(), as.numeric)) 
+
+
+```
+
+
+```{r FilterSamples, eval=TRUE, cache=TRUE}
+
+# filter samples with zero total abundance
+    # Check for 0 depth samples and remove them.
+    # Remove samples with zero total abundance
+    Feature_df_int_filtered <- Feature_df[rowSums(Feature_df) > 0, ]
+
+# Few sanity and data format checks
+  zero_samples <- rownames(Feature_df)[rowSums(Feature_df) == 0]
+  
+  # [1] "ERR3844798"  "ERR4791684"  "ERR4853133"  "SRR12397846"
+  length(zero_samples)
+  # View(zero_samples)
+
+# Filter Feature table according to filtered metadata sample ID
+  print(paste("There are",length(unique(Feast_metadata$SampleID)), "number of samples in your metadata table"))
+
+# Matching sample IDs should be of 1301 length
+  Matching_samples_Ids <- intersect(Feast_metadata$SampleID, 
+                                  row.names(Feature_df_int_filtered))
+  
+  # Check which samples are missing
+  setdiff(Feast_metadata$SampleID, row.names(Feature_df_int_filtered))
+  # [1] "SRR12397846"
+  # Both zero abundance samples and distinct samples are the same.
+  # Remove these low abundance samples.
+  
+# --------------------------------- # --------------------------------- #
+
+
+# If you remove samples from feature table then also remove them from FEAST metadata. 
+
+# That means 2 things, 
+  # 1. if the sample is a sink then remove the whole iteration for sink and source (specified by the id variable)
+  # 2. if the sample id is not a sink then just remove the rows where it's a source
+
+# Create a copy of the metadata to filter
+Feast_metadata_cp <- Feast_metadata
+
+# A. Remove all samples with matching sink IDs
+# Identify sink IDs to remove
+sinkIDs_to_remove <- sapply(zero_samples, function(thisSample) {
+    if (thisSample %in% Feast_metadata$SampleID &&
+        Metadata_Df_filtered[Metadata_Df_filtered$SampleID == thisSample, "SampleTypev2"] == "Sputum") {
+      
+      sinkID <- Feast_metadata[Feast_metadata$SampleID == thisSample, "id"]
+      print(paste("Removing sink iteration for ID:", sinkID))
+      return(sinkID)
+    } else {
+      return(NA)
+    }
+  })
+
+  # Drop NAs and make unique list of sink IDs to remove
+  sinkIDs_to_remove <- na.omit(unique(unlist(sinkIDs_to_remove)))
+
+  # Remove all samples with matching sink IDs
+  Feast_metadata <- Feast_metadata %>%
+    filter(!(id %in% sinkIDs_to_remove))
+  
+
+
+# B. If it's not sink then run this to remove all samples with matching sample IDs which are not sinks
+Feast_metadata <- Feast_metadata %>%
+  filter(!(SampleID %in% zero_samples))
+
+  # There should be 4 less samples in this now. So, 1027
+  print(paste("There are",length(unique(Feast_metadata$SampleID)), "number of samples in your metadata table"))
+  
+# check if both metadata and feature tables have same sampleIDs
+# Matching sample IDs should be of 1027 length
+  Matching_samples_Ids <- intersect(Feast_metadata$SampleID, 
+                                  row.names(Feature_df_int_filtered))
+
+# Subset Feature_df_int_filtered for common ones. 1684800 > 1011660
+Feature_df_int_filtered <- Feature_df_int_filtered[
+  row.names(Feature_df_int_filtered) %in% Matching_samples_Ids,]
+
+# --------------------------------- # --------------------------------- #
+
+  # Final mactching check
+  stopifnot(all(row.names(Feature_df_int_filtered) %in% Feast_metadata$SampleID))
+
+  # Should be empty
+  Index <- which(!(row.names(Feature_df_int_filtered) %in% Feast_metadata$SampleID))
+  Index <- which(!(Feast_metadata$SampleID %in% row.names(Feature_df_int_filtered)))
+  # rm if empty
+  rm(Index)
+  #row.names(Feature_df)[Index]
+  
+
+```
+
+- **Step 4**: Start the FEAST
+
+Saving the output files to "./Output"
+
+
+```{r enjoyThe_FEAST, echo=FALSE, cache=TRUE}
+
+set.seed(8995)
+
+# Specify path for output results
+getwd()
+OutDir="./"
+setwd(OutDir)
+
+Unique_IDs <- unique(Feast_metadata$id)
+# 68 ids retained.
+
+# Loop over to find samples to remove
+for (eachId in Unique_IDs) {
+  # Subset metadata for each sink group
+  Feast_metadata_sub <- Feast_metadata %>%
+    filter(id == eachId) %>% 
+    mutate(id = 1) %>%  # ✅ Reset sink id to 1 for each run
+    column_to_rownames("SampleID")
+    
+  # Define output file name
+  # Set output name with the actual sample ID for sink
+  sink_name <- rownames(Feast_metadata_sub[Feast_metadata_sub$SourceSink == "Sink", , drop = FALSE])[1]
+  disease_sink <- Feast_metadata_sub[Feast_metadata_sub$SourceSink == "Sink", "Disease"]
+  
+  # Add a custom output file name with Disease type of the sink sample
+  outfile_name <- paste0(disease_sink, "_IRT_sink_", sink_name)
+  
+  print(paste("Running FEAST on sink", eachId, "-", sink_name))
+
+# run FEAST now
+  FEAST_output_sub <- FEAST(C = Feature_df_int_filtered, 
+                      metadata = Feast_metadata_sub, 
+                      different_sources_flag = 1, 
+                      dir_path = "./",
+                      outfile=outfile_name,
+                      EM_iterations = 1000 )
+  
+}
+
+
+
+```
+
+- **Step 5**: What the FEAST has given you?!
+
+```{r FEASTout, eval=FALSE}
+
+library(tidyverse)
+
+# Check path
+print(paste("You're here now:",getwd()))
+
+# init file path
+OutDir <- "C:/Users/o_shinde/Nextcloud/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/02_URT-LRT_to_IRT/Disease_Output/"
+
+# Desktop init path
+OutDir = "C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/02_URT-LRT_to_IRT/Diseased_Group_Output/"
+
+# For each diseases we generate a pattern and identify files to merge them.
+Disease_of_Interest
+  # "Healthy"     "Cystic Fibrosis"   "Covid-19"    
+
+# init a df to store all results
+Healthy_Results_df <- data.frame()
+
+# Get list of output files. Pattern starts with IRT_sink*.txt
+List_Outputs <- list.files(path = OutDir, pattern = "*_IRT_sink_*")
+
+# Read all files in the dir
+for(eachReport in List_Outputs){
+  
+  # Read file
+  fullName <- paste0(OutDir, "/",eachReport)
+  
+  if(file.exists(fullName)){
+    print(paste("Reading output file", str_remove(eachReport, "_source_contributions_matrix.txt")))
+    
+    # read file
+   read_df <- read.table(fullName, sep = "\t", header = T, nrows = 2, check.names = F) 
+  }
+  
+  # rbind
+  Healthy_Results_df <- rbind(read_df, Healthy_Results_df)
+
+}
+
+# Sanity check. Should have m*n matrix, where m is number of sink/rows and n is the number of sources/columns
+# dim(Healthy_Results_df) $ Should have 19 rows for BAL fluid (sink) and 959 columns (sources)
+
+# save this table
+write.table(Healthy_Results_df, "Disease_Group_IRT_Sinks_from_URT_LRT_FEAST_merged_output.txt", row.names = T, sep = '\t')
+
+```
+
+- **Step 6**: Summarize the output
+
+```{r Summarise_contribs, eval=FALSE}
+
+library(tidyverse)
+
+# Check path
+print(paste("You're here now:",getwd()))
+
+# init file path
+OutDir <- "C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/02_URT-LRT_to_IRT/Plots/"
+
+# Read merged output df
+Results_df <- read.table("./Disease_Group_IRT_Sinks_from_URT_LRT_FEAST_merged_output.txt", row.names = 1, sep = '\t', header = T, check.names = F)
+
+# Check if all row Sums add to one
+RowSums_Proportions_Index <- rowSums(Results_df)
+RowSums_Proportions_Boolean <- all(rowSums(Results_df) == 1)
+
+
+View(Results_df[RowSums_Proportions_Index,])
+
+# Melt the dataframe
+Results_long <- Results_df %>%
+  rownames_to_column("Sink_SampleIDs") %>%
+  pivot_longer(cols = all_of(colnames(Results_df)), names_to = "Src_SampleIDs", values_to = "Value", values_drop_na = TRUE) %>%
+  mutate(
+    Temp = str_replace(Sink_SampleIDs, "BAL_BAL$", ""),
+    Sink_SampleID = str_extract(Temp, "^[^_]+"),
+    Sink_SampleType = str_extract(Sink_SampleIDs, "[^_]+$")
+  ) %>% select(-Temp) %>%
+  # Separate Src_SampleID and Src_SampleType
+  mutate(
+    Src_SampleID = str_extract(Src_SampleIDs, "^[^_]+"),
+    Src_SampleType = str_extract(Src_SampleIDs, "[^_]+$")
+  )
+
+table(Results_long$Src_SampleType, useNA = 'ifany')/341
+table(Results_long$Sink_SampleType, useNA = 'ifany')/341
+
+# Add factors
+# Add factors for SampleType
+    Src_SamplingSite_Factor <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Supraglottal", "Sputum", "Other", "Unknown")
+    Src_SamplingSite_labels <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Supraglottal", "Sputum", "Other", "Unknown")
+    
+Results_long$Src_SampleType <- factor(Results_long$Src_SampleType,
+                                      levels = Src_SamplingSite_Factor,
+                                      labels = Src_SamplingSite_labels,
+                                      ordered = T)
+
+table(Results_long$Src_SampleType, useNA = 'ifany')/341
+
+#Results_long$Src_SampleType <- droplevels(Results_long$Src_SampleType)
+
+# Add factor to sink sampleType
+Results_long$Sink_SampleType <- factor(Results_long$Sink_SampleType)
+
+# Define custom colors for sampletypes + "Unknown"
+SampleType_custom_colors <- c(
+  "Nasal Swab" = "#E7298A",         # New, magenta-pink
+  "Buccal mucosa" = "#F781BF",      # Same as original
+  "Oral swab" = "#FF7F00",          # Reused from "Palatine Tonsils"
+  "Saliva" = "#A65628",             # Same as original
+  "Tongue dorsum" = "#4DAF4A",      # Same as original 
+  "Supraglottal" = "#984EA3",       # Same as original
+  "Sputum" = "#E41A1C",             # Same as original
+  "Other" = "#999999",              # Gray
+  "Unknown" = "#CCCCCC"             # Light gray for unknown
+)
+  
+# sanity check
+    # levels(Results_long$Src_SampleType)
+
+
+```
+
+- **Step 7**: Plotting SampleType contributions for healthy
+
+Default plot for the output
+
+```{r def_Disease_plotSrc_contributions, eval=FALSE}
+# plot cmd
+PlotSourceContribution(SinkNames = rownames(Results_df)[c(1:2)],
+                       SourceNames = colnames(Results_df)[c(1:10)], 
+                       dir_path = OutDir,
+                       mixing_proportions = Results_df, 
+                       Plot_title = "URT-IRT to LRT", 
+                       Same_sources_flag = 0, 
+                       N = 2)
+
+# Doesn't make sense for samples > 10
+
+```
+
+
+Boxplot for Ggplot
+
+
+```{r Disease_plotSrc_contributions_bar, eval=FALSE}
+
+# Read metadata and join it to the long table
+Feast_metadata <- read.table("IRT_sink_metadata_All.txt", header = T, 
+                             sep = "\t")
+
+# Format the sampleIDs to match
+Feast_metadata_cp <- Feast_metadata
+
+Feast_metadata_sub <- Feast_metadata %>%
+  filter(SourceSink == 'Source') %>%
+  mutate(SampleID = str_extract(SampleID, "^[^_]+"))
+
+length(intersect(Results_long$Src_SampleID, Feast_metadata_sub$SampleID))
+
+# Plot 1: Box plot source contributions by Sample type
+Results_long_mean <- Results_long %>% 
+  left_join(Feast_metadata, by = join_by("Src_SampleID" == "SampleID")) %>%
+  group_by(Sink_SampleID, Src_SampleType) %>% 
+  summarise(Proport = median(Value, na.rm=TRUE),
+            Sink_SampleType = first(Sink_SampleType),
+            .groups = "drop") %>%
+  ungroup()
+
+ggplotObj <- ggplot(Results_long_mean, aes(x = Sink_SampleType, y = Proport, fill = Src_SampleType))
+
+# save plot
+savePlot <- ggplotObj + geom_bar(stat = 'identity') +
+  labs(title = "Microbial contribution from \ndifferent sample types (diseased condition)",
+       fill = "Source sample type",
+       x = NULL,
+       y = "Median percentage contribution") + 
+  theme_bw() +
+  theme(
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22, face = "bold"),
+        title = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, face = "bold"),
+        plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt"),
+        strip.text = element_text(size = 18, face = "bold")) 
+
+ggsave("./Plots/IRT_sink_source_median_contributions_barplot_Sampletype_Diseased.png",
+       plot = savePlot,
+       width = 25,          
+       height = 18,
+       units = "cm",
+       dpi = 300,               # High resolution
+       limitsize = FALSE)
+
+# spot check for each BAL samples
+
+unknown_sorted <- Results_long %>%
+  group_by(Src_SampleType) %>%
+  summarise(Proport = sum(Value), .groups = "drop")
+
+# Buccal mucosa and Sputum have the highest sum proportions after Unknown
+
+# Step 1: Sort all samples by Unknown contribution
+unknown_sorted <- Results_long %>%
+  group_by(Sink_SampleID, Src_SampleType) %>%
+  summarise(Proport = sum(Value)) %>%
+  filter(Src_SampleType == "Unknown") %>%
+  arrange(Proport) %>%
+  pull(Sink_SampleID)
+
+# Step 2: Select top 150 low-unknown samples
+top150_low_unknown <- unknown_sorted[1:150]
+
+# Step 3: Sub-sort these 150 by Sputum contribution (descending)
+top150_sorted <- Results_long %>%
+  filter(Sink_SampleID %in% top150_low_unknown & Src_SampleType == "Sputum") %>%
+  group_by(Sink_SampleID) %>%
+  summarise(SputumProp = sum(Value), .groups = "drop") %>%
+  arrange(desc(SputumProp), .by_group = TRUE) %>%
+  pull(Sink_SampleID)
+
+# Step 4: Concatenate with the rest of the samples (including high Unknown)
+final_sample_order <- c(top150_sorted, unknown_sorted[151:350])
+
+  # Add this list as a sampleId factor
+  Results_long$Sink_SampleID <- factor(Results_long$Sink_SampleID,
+                                        levels = unknown_sorted,
+                                       ordered = T)
+  # rm factor
+  Results_long$Sink_SampleID <- factor(Results_long$Sink_SampleID)
+  
+  # sanity check
+  levels(Results_long$Sink_SampleID)
+  
+# Plot 2: Bar plot source contributions by Sample type
+ggplotObj <- ggplot(Results_long, aes(x = Sink_SampleID, y = Value, fill = Src_SampleType))
+
+# save plot
+savePlot <- ggplotObj + geom_bar(stat = 'identity') +
+  labs(title = "Microbial contribution to BAL from \ndifferent sample types (Diseased)",
+       fill = "Source sample type",
+       x = NULL,
+       y = "Percentage contribution") + 
+  ylim(0,1) + 
+  scale_fill_manual(values = SampleType_custom_colors) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22, face = "bold"),
+        title = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, face = "bold"),
+        plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt"),
+        strip.text = element_text(size = 18, face = "bold")) 
+
+ggsave("./Plots/Diseased_IRT_sink_source_contributions_barplot_v2_Sampletype.png",
+       plot = savePlot,
+       width = 25,          
+       height = 18,
+       units = "cm",
+       dpi = 300,               # High resolution
+       limitsize = FALSE)
+
+
+```
+
+- Boxplot for each sampleType
+
+
+```{r Disease_plotSrc_box, eval=FALSE}
+
+# Plot 3: Box plot source contributions by Sample type
+ggplotObj <- ggplot(Results_long, aes(x = Src_SampleType, y = (Value), fill = Src_SampleType))
+
+# save plot
+savePlot <- ggplotObj + geom_boxplot() +
+  labs(title = "Healthy microbial contribution to IRT (Sputum)\nfrom different URT-LRT sample types",
+       fill = "Source sample type",
+       x = NULL,
+       y = "Percentage contribution + 1e-4") + 
+  theme_bw() +
+  theme(
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22, face = "bold"),
+        title = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, face = "bold"),
+        plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt"),
+        strip.text = element_text(size = 18, face = "bold")) 
+
+ggsave("./Plots/IRT_sink_source_contributions_boxplot_Sampletype.png",
+       plot = savePlot,
+       width = 50,          
+       height = 18,
+       units = "cm",
+       dpi = 300,               # High resolution
+       limitsize = FALSE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

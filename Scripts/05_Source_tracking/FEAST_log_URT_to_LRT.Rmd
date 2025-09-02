@@ -1,0 +1,549 @@
+---
+title: "FEAST: URT to LRT"
+author: "Tejus Shinde"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r InstallDependencies, include=FALSE, eval=FALSE}
+# Run this code once before you run this analysis
+
+# install dependencies
+Packages <- c("Rcpp", "RcppArmadillo", "vegan", "dplyr", "reshape2", "gridExtra", "ggplot2", "ggthemes")
+install.packages(Packages)
+lapply(Packages, library, character.only = TRUE)
+
+# install packages
+devtools::install_github("cozygene/FEAST")
+
+```
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+setwd("C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking")
+
+# Load the FEAST pckg
+require(FEAST)
+require(tidyverse)
+
+```
+
+
+## R Markdown
+
+- **FEAST** : fast expectation-maximization for microbial source tracking - a scalable algorithm for quantifying the origins of complex microbial communities. 
+
+This is a log for script running the tool FEAST, for the MiPORT dataset. 
+Withing this project we want to run source tracking to detect URT to LRT sample microbiol transfers 
+
+- Requires 2 mandatory **input** files:
+    
+    - C - An m by n count matrix, where m is the number samples and n is the number of taxa.
+    - An m by 3 table, where m is the number of samples. The metadata table has three columns (i.e., ‘Env’, ‘SourceSink’, ‘id’).
+
+<br>
+- **Step 1**: Read metadata file and add factors
+
+```{r MakeMetadata_table, cache=TRUE}
+
+# Init vars
+Data_dir="C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/"
+
+# Read metadata file
+Metadata_Df <- read.table(paste0(Data_dir,"MetaPhlan4_results/Healthy_Metaphlan4_metadata_RepeatedSamples.tsv"), header = T, sep = "\t")
+
+```
+
+
+- **Step 2**: Make a metadata file from the study metadata for FEAST
+
+```{r preProcess_Metadata, eval=FALSE, include=FALSE}
+
+# Add factors and filter metadata for samples of interest
+    # Make a list of metadata cols to work with
+    Groups_Interest <- c("SampleID", "BioProject", "Health", "SampleTypev2", "RT_category", "PatientID")
+
+    # Filter for healthy samples first
+    Metadata_Df <- Metadata_Df %>% 
+      filter(Healthy == "TRUE")
+
+    # samples retained, check counts
+    table(Metadata_Df$SampleTypev2, useNA = 'ifany')
+
+# Add factors to metadata
+    # Add factors for SampleTypev2
+    SamplingSite_Factor <- c("Nasal_Swab", "Buccal_mucosa", "Oral_swab", "Saliva", "Tongue_dorsum", "Supraglottal", "Sputum", "BAL", "Other")
+    SamplingSite_labels <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Supraglottal", "Sputum", "BAL", "Other")
+    
+    Metadata_Df$SampleTypev2 <- factor(Metadata_Df$SampleTypev2, 
+                                       levels = SamplingSite_Factor, 
+                                       labels = SamplingSite_labels)  
+    # sanity check
+    # levels(Metadata_Df$SampleTypev2)
+
+    # Add factors for RT category
+    RT_Cat_Factor <- c("URT", "IRT", "LRT")
+    RT_Cat_Labels <- c("Upper RT", "Intermediate RT", "Lower RT")
+    Metadata_Df$RT_category <- factor(Metadata_Df$RT_category , 
+                                      levels = RT_Cat_Factor,
+                                      labels = RT_Cat_Labels)
+    # sanity check
+    # table(Metadata_Df$RT_category, useNA = 'ifany')
+    # levels(Metadata_Df$RT_category)
+    
+  # 1. Identify sinks and sources
+  sinks <- Metadata_Df %>%
+    filter(RT_category == "Lower RT") %>%
+    mutate(SourceSink = "Sink",
+           id = row_number(),  # each sink gets a unique id
+           Env = SampleTypev2)
+  
+  # 2. Assign same sources to each sink
+  sources <- Metadata_Df %>% 
+    filter(RT_category != "Lower RT") %>%
+    mutate(SourceSink = "Source",
+           Env = SampleTypev2) %>% 
+    slice(rep(1:n(), each = nrow(sinks))) %>%
+    mutate(id = rep(1:nrow(sinks), times = nrow(.) / nrow(sinks)))
+  
+  # 3. Combine into FEAST-compatible table
+  Feast_metadata <- bind_rows(
+    sinks %>% select(SampleID, Env, SourceSink, id),
+    sources %>% select(SampleID, Env, SourceSink, id)
+  )
+  
+  # 4. Preview
+  head(Feast_metadata)
+  
+  # 5. save metadata
+  write.table(Feast_metadata, "./LRT_sink_metadata.txt",
+              sep = '\t', row.names = F, quote = F)
+  
+```
+
+- **Step 3.A**: Read metadata table file
+
+```{r fileReading}
+
+# Check point: You can start here
+  # Init vars
+  Data_dir="C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/"
+
+  # Add file names 
+  Metadata_fileName = paste0(Data_dir,"07_Source_tracking/URT_to_LRT/LRT_sink_metadata.txt")
+  Feature_fileName = paste0(Data_dir,"MetaPhlan4_results/Healthy_Metaphlan4_species_merged_RepeatedSamples_batchCorrected.tsv")
+
+  # Read this metadata now
+  Feast_metadata <- read.table(Metadata_fileName,
+              sep = '\t', header = T)
+  
+  #Feast_metadata_sub <- Load_metadata(metadata_path = Feast_metadata)
+
+    # sanity check
+  #table(Feast_metadata$SourceSink, Feast_metadata$Env, useNA = 'ifany')
+    # Apart from LRT samples (n=19, all other samples are repeated for each of the 19 LRT samples)
+  print(paste("There are",length(unique(Feast_metadata$SampleID)), "number of samples in your metadata table"))
+
+
+
+```
+
+- **Step 3.B**: Read feature table file
+
+```{r Read_features, echo=FALSE}
+
+# Read feature table 
+if(file.exists(Feature_fileName)){
+    print("Reading abundance file...")
+    Feature_df <- read.table(Feature_fileName, sep = "\t", header = T, 
+                             check.names = F)
+    
+    # sanity check
+    print(paste("Feature table has", ncol(Feature_df), "number of species &", nrow(Feature_df), "number of samples."))
+    
+    Feature_df <- Load_CountMatrix(CountMatrix_path = Feature_fileName)
+    print(Feature_df[1:5,1:5])
+    
+    # Convert to pseudo-counts as FEAST expects pseudo-counts
+    Feature_df_int <- ceiling(1e5 * Feature_df)
+
+}
+
+# Check for 0 depth samples and remove them.
+# Remove samples with zero total abundance
+Feature_df_int_filtered <- Feature_df_int[rowSums(Feature_df_int) > 0, ]
+
+```
+
+
+```{r FilterSamples, eval=TRUE, cache=TRUE}
+
+# Few sanity and data format checks
+
+zero_samples <- rownames(Feature_df_int)[rowSums(Feature_df_int) == 0]
+length(zero_samples)
+# View(zero_samples)
+
+# --------------------------------- # --------------------------------- #
+
+# If you remove samples from feature table then also remove them from here
+# Create a copy of the metadata to filter
+Feast_metadata_cp <- Feast_metadata
+
+# Identify sink IDs to remove
+sinkIDs_to_remove <- sapply(zero_samples, function(thisSample) {
+  if (thisSample %in% Feast_metadata_cp$SampleID &&
+      Metadata_Df[Metadata_Df$SampleID == thisSample, "RT_category"] == "Lower RT") {
+    
+    sinkID <- Feast_metadata_cp[Feast_metadata_cp$SampleID == thisSample, "id"]
+    print(paste("Removing sink iteration for", sinkID))
+    return(sinkID)
+  } else {
+    return(NA)
+  }
+})
+
+# Drop NAs and make unique list of sink IDs to remove
+sinkIDs_to_remove <- na.omit(unique(unlist(sinkIDs_to_remove)))
+
+# Remove all samples with matching sink IDs
+Feast_metadata <- Feast_metadata %>%
+  filter(!(id %in% sinkIDs_to_remove))
+
+# --------------------------------- # --------------------------------- #
+
+# Check if we have all the samples in both metadata table
+  #setdiff(union(row.names(Feature_df_int_filtered), unique(Feast_metadata$SampleID)),  intersect(colnames(Feature_df_int_filtered), unique(Feast_metadata$SampleID)))
+
+  # Name check
+  #stopifnot(all(row.names(Feature_df_int) %in% Feast_metadata$SampleID))
+
+  Index <- which((row.names(Feature_df_int) %in% Feast_metadata$SampleID))
+  Index <- which((Feast_metadata$SampleID %in% row.names(Feature_df_int)))
+  
+  #row.names(Feature_df)[Index]
+  
+# Check if all values are numeric
+  # sapply(Feature_df, class)
+  
+  # if not then do this
+  # Feature_df_int <- Feature_df_int %>%
+  #  mutate(across(everything(), as.numeric)) 
+
+```
+
+- **Step 4**: Start the FEAST
+
+Saving the output files to "./Output"
+
+
+```{r enjoyThe_FEAST, echo=FALSE, cache=TRUE}
+
+set.seed(8995)
+
+# Specify path for output results
+getwd()
+OutDir="./"
+setwd(OutDir)
+
+Unique_IDs <- unique(Feast_metadata$id)
+
+# Loop over to find samples to remove
+for (eachId in Unique_IDs) {
+  # Subset metadata for each sink group
+  Feast_metadata_sub <- Feast_metadata %>%
+    filter(id == eachId) %>% 
+    mutate(id = 1) %>%  # ✅ Reset sink id to 1 for each run
+    column_to_rownames("SampleID")
+    
+  # Define output file name
+  # Set output name with the actual sample ID for sink
+  sink_name <- rownames(Feast_metadata_sub[Feast_metadata_sub$SourceSink == "Sink", , drop = FALSE])[1]
+  outfile_name <- paste0("LRT_sink_", sink_name)
+  
+  print(paste("Running FEAST on sink", eachId, "-", sink_name))
+
+    
+# run FEAST now
+  FEAST_output_sub <- FEAST(C = Feature_df_int, 
+                      metadata = Feast_metadata_sub, 
+                      different_sources_flag = 1, 
+                      dir_path = "./",
+                      outfile=outfile_name,
+                      EM_iterations = 1000 )
+  
+}
+
+
+
+```
+
+- **Step 5**: What the FEAST has given you?!
+
+```{r FEASTout}
+
+library(tidyverse)
+
+# Check path
+print(paste("You're here now:",getwd()))
+
+# init file path
+OutDir <- "C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/URT_to_LRT/Output"
+
+# Get list of output files. Pattern starts with LRT_sink*.txt
+List_Outputs <- list.files(path = OutDir, pattern = "^LRT_sink_*")
+
+# init a df to store all results
+Results_df <- data.frame()
+
+# Read all files in the dir
+for(eachReport in List_Outputs){
+  
+  # Read file
+  fullName <- paste0(OutDir, "/",eachReport)
+  
+  if(file.exists(fullName)){
+    print(paste("Reading output file", str_remove(eachReport, "_source_contributions_matrix.txt")))
+    
+    # read file
+   read_df <- read.table(fullName, sep = "\t", header = T, nrows = 2, check.names = F) 
+  }
+  
+  # rbind
+  Results_df <- rbind(read_df, Results_df)
+
+}
+
+# Sanity check. Should have m*n matrix, where m is number of sink/rows and n is the number of sources/columns
+# dim(Results_df) $ Should have 19 rows for BAL fluid (sink) and 959 columns (sources)
+
+# save this table
+write.table(Results_df, "Healthy_URT_IRT_to_LRT_FEAST_merged_output.txt", row.names = T, sep = '\t')
+
+```
+
+- **Step 6**: Summarize the output
+
+```{r Summarise_contribs}
+
+library(tidyverse)
+
+# Check path
+print(paste("You're here now:",getwd()))
+
+# init file path
+OutDir <- "C:/Users/o_shinde/Desktop/MiPORT/AG Moissl-Eichinger_people/Tejus/MiPoRT Paper/MiPORT_DA/07_Source_tracking/URT_to_LRT/Output"
+
+# Read merged output df
+Results_df <- read.table("Healthy_URT_IRT_to_LRT_FEAST_merged_output.txt", row.names = 1, sep = '\t', header = T, check.names = F)
+
+# Melt the dataframe
+Results_long <- Results_df %>%
+  rownames_to_column("Sink_SampleIDs") %>%
+  pivot_longer(cols = all_of(colnames(Results_df)), names_to = "Src_SampleIDs", values_to = "Value", values_drop_na = TRUE) %>%
+  mutate(
+    Sink_SampleID = str_extract(Sink_SampleIDs, "^[^_]+"),
+    Sink_SampleType = str_extract(Sink_SampleIDs, "[^_]+$")
+  ) %>%
+  # Separate Src_SampleID and Src_SampleType
+  mutate(
+    Src_SampleID = str_extract(Src_SampleIDs, "^[^_]+"),
+    Src_SampleType = str_extract(Src_SampleIDs, "[^_]+$")
+  )
+
+table(Results_long$Src_SampleType, useNA = 'ifany')
+
+# Add factors
+# Add factors for SampleType
+    Src_SamplingSite_Factor <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Sputum", "Other", "Unknown")
+    Src_SamplingSite_labels <- c("Nasal swab", "Buccal mucosa", "Oral swab", "Saliva", "Tongue dorsum", "Sputum", "Other", "Unknown")
+    
+Results_long$Src_SampleType <- factor(Results_long$Src_SampleType,
+                                      levels = Src_SamplingSite_Factor,
+                                      labels = Src_SamplingSite_labels,
+                                      ordered = T)
+
+Results_long$Src_SampleType <- droplevels(Results_long$Src_SampleType)
+
+Results_long$Sink_SampleType <- factor(Results_long$Sink_SampleType)
+
+# Define custom colors for sampletypes + "Unknown"
+SampleType_custom_colors <- c(
+  "Nasal Swab" = "#E7298A",         # New, magenta-pink
+  "Buccal mucosa" = "#F781BF",      # Same as original
+  "Oral swab" = "#FF7F00",          # Reused from "Palatine Tonsils"
+  "Saliva" = "#A65628",             # Same as original
+  "Tongue dorsum" = "#4DAF4A",      # Same as original
+  "Sputum" = "#E41A1C",             # Same as original
+  "Other" = "#999999",              # Gray
+  "Unknown" = "#CCCCCC"             # Light gray for unknown
+)
+  
+# sanity check
+    # levels(Results_long$Src_SampleType)
+
+
+```
+
+- **Step 7**: Plotting SampleType contributions for healthy
+
+Default plot for the output
+
+```{r def_plotSrc_contributions, eval=FALSE}
+# plot cmd
+PlotSourceContribution(SinkNames = rownames(Results_df)[c(1:2)],
+                       SourceNames = colnames(Results_df), 
+                       dir_path = OutDir,
+                       mixing_proportions = Results_df, 
+                       Plot_title = "URT-IRT to LRT", 
+                       Same_sources_flag = 0, 
+                       N = 2)
+
+
+```
+
+
+Boxplot for Ggplot
+
+
+```{r plotSrc_contributions_bar, eval=FALSE}
+
+# Plot 1: Box plot source contributions by Sample type
+Results_long_mean <- Results_long %>% 
+  group_by(Sink_SampleID, Src_SampleType) %>% 
+  summarise(Proport = median(Value, na.rm=TRUE),
+            Sink_SampleType = first(Sink_SampleType),
+            .groups = "drop") %>%
+  ungroup()
+
+ggplotObj <- ggplot(Results_long_mean, aes(x = Sink_SampleType, y = Proport, fill = Src_SampleType))
+
+# save plot
+savePlot <- ggplotObj + geom_bar(stat = 'identity') +
+  labs(title = "Microbial contribution from \ndifferent sample types",
+       fill = "Source sample type",
+       x = NULL,
+       y = "Median percentage contribution") + 
+  theme_bw() +
+  theme(
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22, face = "bold"),
+        title = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, face = "bold"),
+        plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt"),
+        strip.text = element_text(size = 18, face = "bold")) 
+
+ggsave("./Plots/LRT_sink_source_median_contributions_barplot_Sampletype.png",
+       plot = savePlot,
+       width = 25,          
+       height = 18,
+       units = "cm",
+       dpi = 300,               # High resolution
+       limitsize = FALSE)
+
+# spot check for each BAL samples
+# Get an order of samples first
+Sorted_samples <- Results_long %>% group_by(Sink_SampleID, Src_SampleType) %>% summarise(Proport = sum(Value)) %>% 
+  filter(Src_SampleType %in% c("Unknown")) %>% 
+  group_by(Src_SampleType) %>%
+  arrange(Proport) %>% pull(Sink_SampleID)
+
+Sorted_samples_l2 <- Results_long %>% 
+  filter(!Sink_SampleID %in% Sorted_samples[14:18]) %>%
+  group_by(Sink_SampleID, Src_SampleType) %>% summarise(Proport = sum(Value)) %>% 
+  filter(Src_SampleType %in% c("Saliva")) %>% 
+  group_by(Src_SampleType) %>%
+  arrange(Proport) %>% pull(Sink_SampleID)
+  
+# Make a custom list
+  New_list <- c(Sorted_samples_l2, Sorted_samples[14:18])
+    
+  # Add this list as a sampleId factor
+  Results_long$Sink_SampleID <- factor(Results_long$Sink_SampleID,
+                                        levels = New_list,
+                                       ordered = T)
+
+
+  # sanity check
+  levels(Results_long$Sink_SampleID)
+  
+# Plot 2: Box plot source contributions by Sample type
+ggplotObj <- ggplot(Results_long, aes(x = Sink_SampleID, y = Value, fill = Src_SampleType))
+
+# save plot
+savePlot <- ggplotObj + geom_bar(stat = 'identity') +
+  labs(title = "Microbial contribution to BAL from \ndifferent sample types",
+       fill = "Source sample type",
+       x = NULL,
+       y = "Percentage contribution") + 
+  scale_fill_manual(values = SampleType_custom_colors) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22, face = "bold"),
+        title = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, face = "bold"),
+        plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt"),
+        strip.text = element_text(size = 18, face = "bold")) 
+
+ggsave("./Plots/Healthy_LRT_sink_source_contributions_barplot_v2_Sampletype.png",
+       plot = savePlot,
+       width = 25,          
+       height = 18,
+       units = "cm",
+       dpi = 300,               # High resolution
+       limitsize = FALSE)
+
+
+```
+
+- Boxplot for each sampleType
+
+
+```{r plotSrc_contributions_bar, eval=FALSE}
+
+# Plot 3: Box plot source contributions by Sample type
+ggplotObj <- ggplot(Results_long, aes(x = Src_SampleType, y = (Value), fill = Src_SampleType))
+
+# save plot
+savePlot <- ggplotObj + geom_boxplot() +
+  labs(title = "Healthy microbial contribution to LRT (BAL)\nfrom different URT sample types",
+       fill = "Source sample type",
+       x = NULL,
+       y = "Percentage contribution + 1e-4") + 
+  theme_bw() +
+  theme(
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22, face = "bold"),
+        title = element_text(size = 20, face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, face = "bold"),
+        plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt"),
+        strip.text = element_text(size = 18, face = "bold")) 
+
+ggsave("./Plots/LRT_sink_source_contributions_boxplot_Sampletype.png",
+       plot = savePlot,
+       width = 50,          
+       height = 18,
+       units = "cm",
+       dpi = 300,               # High resolution
+       limitsize = FALSE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

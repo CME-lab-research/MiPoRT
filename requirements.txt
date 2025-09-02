@@ -1,0 +1,18 @@
+# preproc
+SRA Toolkit (v3.0.0)
+BBMap suite (v.39.01)
+FastQC (v0.11.9)
+MultiQC (v)
+
+# core analysis
+R (v.4.1.2)
+MetaPhlAn (v4.1.1)
+FEAST (v3.6.5)
+Biocondutor & R packages: 
+	MMUPHin (v1.20),
+	maaslin3 (0.99.4)
+	rbiom (v1.0.3), 
+	compositions (v2.0.8), 
+	vegan (v2.6.8),
+	ape (v5.8.1)
+
