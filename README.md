@@ -25,7 +25,7 @@ MiPoRT/
 	├── 01_Preprocessing					# Scripts for preprocessing reads
 	├── 02_Diversity_analysis				# Microbiome diversity analysis scripts
 	├── 03_Abundance_Prevalence_analysis	# Scripts for plots and stats
-	├── 04_Differential_modeling    # Scripts for source tracking analysis
+	├── 04_Differential_modeling    # Scripts for differential modeling analysis
 	└── 05_Source_tracking			# Scripts for source tracking analysis
 
 ```
