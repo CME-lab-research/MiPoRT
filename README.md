@@ -1,10 +1,10 @@
-# MiPoRT
-MiPoRT (Microbial Profiling of the Respiratory Tract) study aims to study the microbial profiles and their ecology in the human respiratory tract. 
+# MiPoRT (Microbial Profiling of the Respiratory Tract)
+MiPoRT study aims to study the microbial profiles and their ecology in the human respiratory tract. 
 
 ## Abstract
-The MiPoRT (Microbial Profiling of the Respiratory Tract) project integrates over 4,000 metagenomic samples from the human respiratory tract to profile microbial communities across health and disease. This repository hosts the code, workflows, and processed outputs used in the MiPoRT study. Raw sequencing data are archived at ENA under accession PRJEB96845. Supplementary processed data and tables are available via [Zenodo DOI].
+The MiPoRT (Microbial Profiling of the Respiratory Tract) project integrates over 4,000 metagenomic samples from the human respiratory tract to profile microbial communities across health and disease. This repository hosts the code, workflows, and processed outputs used in the MiPoRT study. Raw sequencing data are archived at ENA under accession PRJEB96845. Supplementary processed data and tables are available via [Add zenodo DOI].
 
-# 📁 Folder Structure
+## 📁 Folder Structure
 
 ```text
 MiPoRT/
@@ -28,7 +28,7 @@ MiPoRT/
 
 ```
 
-> Note: The scripts in *Scripts/* were developed iteratively and are not optimized for general re-use. We provide them for transparency and reproducibility. Only the essential scripts that reproduce key analyses are provided. 
+> Note: The scripts in *Scripts/* are developed iteratively and are not optimized for general re-use. We provide them for transparency and reproducibility. Only the essential scripts that reproduce key analyses are provided. 
 
 ## Data availability
 
