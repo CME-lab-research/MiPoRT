@@ -6,11 +6,10 @@ Analysis
 Results
 
 # Ignore raw data files
-Data/
-.fastq.gz
-.bam
-.fasta
-.ignore
+*.fastq.gz
+*.bam
+*.fasta
+*.ignore
 
 # Ignore output figures
 *.png
