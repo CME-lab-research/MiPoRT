@@ -21,6 +21,12 @@ MiPoRT/
 │   ├── Processed/			# Pre-processed and filtered microbial profiles
 │   └── Metadata/			# Sample metadata
 │
+├── docs/
+│   ├── workflows/
+│   │   └── MiPORT_analysis_workflow_STORMchart.md
+│   │
+│   └── BC_ordination_files/ # Stores interactive PCoA html
+│
 └──  Scripts/
 	├── 01_Preprocessing					# Scripts for preprocessing reads
 	├── 02_Diversity_analysis				# Microbiome diversity analysis scripts
