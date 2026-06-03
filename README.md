@@ -46,6 +46,16 @@ MiPoRT/
     ├── 03_Abundance_Prevalence_analysis     # Scripts for plots and stats
     ├── 04_Differential_modeling             # Scripts for differential modeling analysis
     └── 05_Source_tracking                   # Scripts for source tracking analysis
+    └── 06_Functional_analysis/
+        ├── 01_A_process_humann_outputs.sh                    # Merge, clean, and regroup HUMAnN-derived gene-family and pathway profiles
+        ├── 01_B_filter_zero_KO_samples.R                     # Remove samples or KO features with zero functional signal before downstream normalization/modeling
+        ├── 02_A_Batch_Correction_split_KO_table_by_RT-Cat.R   # Split KO abundance tables by respiratory tract category before within-compartment batch correction
+        ├── 02_B_Batch_Correction_withinRT_MMUPHin.R           # Perform within-respiratory-tract batch correction of KO profiles using MMUPHin
+        ├── 02_C_Merge_batch_correction_tables.R               # Merge batch-corrected KO tables from different respiratory tract compartments
+        ├── 03_pcoA_KO_ext_RELAB.R                             # Generate PCoA ordinations from relative-abundance KO profiles
+        ├── 04_Permanova_analysis_with_Adonis_KO_relab.R       # Test functional profile variation using PERMANOVA/adonis on KO relative-abundance data
+        └── 05_Functional_BRITE_heatmap-bubble_plot_script.R   # Generate KEGG BRITE-level heatmap and bubble plots for functional summaries
+        
 ```
 
 > Note: The scripts in *Scripts/* are developed iteratively and are not optimized for general re-use. We provide them for transparency and reproducibility. Only the essential scripts that reproduce key analyses are provided. 
