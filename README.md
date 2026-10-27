@@ -37,23 +37,22 @@ The conceptual summary below illustrates these findings and provides biological 
 ## Understanding the MiPoRT resource
 
 
+### Abstract
+
 <details>
 
-<summary>Abstract for research project/article</summary>
+<summary>Pan-microbiome analysis along the human respiratory axis reveals an ecological continuum in health and disruption in disease</summary>
 
-## Abstract
 The human respiratory tract (RT) harbors spatially structured microbial communities, yet their organization across anatomical sites and diseases remains poorly resolved. Here, we present a respiratory microbiome atlas integrating >4,000 metagenomes from upper, intermediate, and lower RT compartments across health, pneumonia, COVID-19, and cystic fibrosis. Standardized taxonomic and functional profiling revealed strong biogeographic organization, with healthy lower RT communities representing filtered subsets of upper RT microbiota. Disease was associated with reproducible depletion of core commensals, altered inter-compartmental microbial connectivity, and increased contributions from taxa of unknown origin. Functional analyses identified conserved repertoires across upper compartments and niche-specific enrichment in the lower RT. Prevalence-based models outperformed abundance-based approaches in detecting disease-associated microbiome disruption. Genome-resolved analyses recovered 1,255 dereplicated metagenome-assembled genomes, establishing a reusable respiratory genome catalog. Together, this atlas provides a framework for studying respiratory microbiome organization and dysbiosis across health and disease.
 
 </details>
 
-## What data does MiPoRT provide?
-
-## What data does MiPoRT provide?
+### What data does MiPoRT provide?
 
 MiPoRT provides standardized, sample-resolved respiratory microbiome datasets, including:
 
 - **[Taxonomic profiles](Data/Processed/01_MiPoRT_feature_table-1_species.tar.7z):** Microbial species abundance and prevalence.
-- **[Functional profiles](Data/Processed/02_MiPoRT_feature_table-2_KO.tar.7z):** Microbial gene families, KEGG Orthologs (KOs), and pathways.
+- **[Functional profiles](Data/Processed/02_MiPoRT_feature_table-2_KO.tar.7z):** Microbial KEGG Orthologs (KOs) abundance profiles [KO ~ Same gene across species]
 - **[Antimicrobial resistance profiles](Data/Processed/03_MiPoRT_feature_table-3_ARG.tar.7z):** Antimicrobial resistance gene (ARG) abundance profiles.
 - **[Sample metadata](Data/Metadata/MiPORT_Metadata.tsv):** Respiratory compartment, sample type, health/disease status, and study information.
 
@@ -137,9 +136,11 @@ Custom code and analysis workflows for the MiPoRT atlas are available from this 
 Taxonomic, functional, and antimicrobial-resistance-gene (ARG) profiles generated for the MiPoRT atlas are also available through this repository (See [`Data/Processed/`](Data/Processed/) directory).
 
 
+## Potential research applications
+
 <details>
 
-## Potential research applications
+<summary> </summary>
 
 
 </details>
