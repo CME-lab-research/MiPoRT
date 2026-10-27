@@ -1,10 +1,21 @@
-# MiPoRT (Microbial Profiling of the Respiratory Tract)
+# MiPoRT — Microbial Profiling of the Respiratory Tract
 MiPoRT study aims to study the microbial profiles and their ecology in the human respiratory tract. 
 
 This repository contains code and files to be shared for the research paper titled: **'Pan-microbiome analysis along the human respiratory axis reveals an ecological continuum in health and disruption in disease'** 
 
+## Conceptual overview
+
+## Understanding the MiPoRT resource
+
+
+<details>
+
+<summary>Abstract for research project/article</summary>
+
 ## Abstract
 The human respiratory tract (RT) harbors spatially structured microbial communities, yet their organization across anatomical sites and diseases remains poorly resolved. Here, we present a respiratory microbiome atlas integrating >4,000 metagenomes from upper, intermediate, and lower RT compartments across health, pneumonia, COVID-19, and cystic fibrosis. Standardized taxonomic and functional profiling revealed strong biogeographic organization, with healthy lower RT communities representing filtered subsets of upper RT microbiota. Disease was associated with reproducible depletion of core commensals, altered inter-compartmental microbial connectivity, and increased contributions from taxa of unknown origin. Functional analyses identified conserved repertoires across upper compartments and niche-specific enrichment in the lower RT. Prevalence-based models outperformed abundance-based approaches in detecting disease-associated microbiome disruption. Genome-resolved analyses recovered 1,255 dereplicated metagenome-assembled genomes, establishing a reusable respiratory genome catalog. Together, this atlas provides a framework for studying respiratory microbiome organization and dysbiosis across health and disease.
+
+</details>
 
 ## 📁 Folder Structure
 
@@ -81,6 +92,14 @@ RESPICAT, the non-redundant metagenome-assembled genome catalogue generated in t
 Custom code and analysis workflows for the MiPoRT atlas are available from this repository: [https://github.com/CME-lab-research/MiPoRT](https://github.com/CME-lab-research/MiPoRT).
 
 Taxonomic, functional, and antimicrobial-resistance-gene (ARG) profiles generated for the MiPoRT atlas are also available through this repository (See [`Data/Processed/`](Data/Processed/) directory).
+
+
+<details>
+
+## Potential research applications
+
+
+</details>
 
 ## Citation
 
