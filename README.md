@@ -7,7 +7,7 @@ This repository contains code and files to be shared for the research paper titl
 
 <p align="center">
   <img
-    src="Docs/Summary_drawing.png"
+    src="Docs/Summary_drawing.svg"
     alt="Conceptual overview of the MiPoRT respiratory microbiome atlas"
     width="1000"
   >
