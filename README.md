@@ -3,6 +3,27 @@ MiPoRT study aims to study the microbial profiles and their ecology in the human
 
 This repository contains code and files to be shared for the research paper titled: **'Pan-microbiome analysis along the human respiratory axis reveals an ecological continuum in health and disruption in disease'** 
 
+<details> 
+
+<summary>TL;DR: Background biology and findings</summary>
+
+## What biology does MiPoRT investigate, and what did we discover?
+
+**MiPoRT** investigates how microbial communities are organized across the human respiratory tract, from the upper (URT) and intermediate (IRT) to the lower respiratory tract (LRT), and how these communities differ between health and respiratory diseases.
+
+By integrating more than 4,000 respiratory metagenomes, we identified several key ecological patterns:
+
+- **Spatial organization:** Microbial communities differ across respiratory compartments, with patterns consistent with ecological connectivity, microbial dispersal, and niche-specific filtering.
+- **Persistent respiratory microbiota:** Certain microbial species are shared across respiratory compartments, while others show compartment-specific distributions.
+- **Disease-associated disruption:** Pneumonia, COVID-19, and cystic fibrosis are associated with changes in microbial community composition, including depletion of common commensals.
+- **Functional variation:** Microbial functional profiles show anatomical differences and disease-associated changes in metabolic and other functional categories.
+- **Antimicrobial resistance:** MiPoRT characterizes the distribution of antimicrobial resistance genes (ARGs) across respiratory microbial communities.
+- **Genome-resolved diversity:** We reconstructed 1,255 non-redundant microbial genomes, establishing RESPICAT as a complementary genomic resource.
+
+The conceptual summary below illustrates these findings and provides biological context for exploring the MiPoRT datasets.
+
+</details>
+
 ## Conceptual overview
 
 <p align="left">
@@ -24,6 +45,20 @@ This repository contains code and files to be shared for the research paper titl
 The human respiratory tract (RT) harbors spatially structured microbial communities, yet their organization across anatomical sites and diseases remains poorly resolved. Here, we present a respiratory microbiome atlas integrating >4,000 metagenomes from upper, intermediate, and lower RT compartments across health, pneumonia, COVID-19, and cystic fibrosis. Standardized taxonomic and functional profiling revealed strong biogeographic organization, with healthy lower RT communities representing filtered subsets of upper RT microbiota. Disease was associated with reproducible depletion of core commensals, altered inter-compartmental microbial connectivity, and increased contributions from taxa of unknown origin. Functional analyses identified conserved repertoires across upper compartments and niche-specific enrichment in the lower RT. Prevalence-based models outperformed abundance-based approaches in detecting disease-associated microbiome disruption. Genome-resolved analyses recovered 1,255 dereplicated metagenome-assembled genomes, establishing a reusable respiratory genome catalog. Together, this atlas provides a framework for studying respiratory microbiome organization and dysbiosis across health and disease.
 
 </details>
+
+## What data does MiPoRT provide?
+
+## What data does MiPoRT provide?
+
+MiPoRT provides standardized, sample-resolved respiratory microbiome datasets, including:
+
+- **[Taxonomic profiles](Data/Processed/01_MiPoRT_feature_table-1_species.tar.7z):** Microbial species abundance and prevalence.
+- **[Functional profiles](Data/Processed/02_MiPoRT_feature_table-2_KO.tar.7z):** Microbial gene families, KEGG Orthologs (KOs), and pathways.
+- **[Antimicrobial resistance profiles](Data/Processed/03_MiPoRT_feature_table-3_ARG.tar.7z):** Antimicrobial resistance gene (ARG) abundance profiles.
+- **[Sample metadata](Data/Metadata/MiPORT_Metadata.tsv):** Respiratory compartment, sample type, health/disease status, and study information.
+
+**Complementary resource:** [RESPICAT](https://github.com/CME-lab-research/RESPICAT) provides 1,255 non-redundant metagenome-assembled genomes (MAGs) recovered from respiratory metagenomes.
+
 
 ## 📁 Folder Structure
 

@@ -12,6 +12,7 @@ Results
 *.ignore
 
 # Ignore output figures
+*.txt
 *.pdf
 
 # Ignore R  Python temporary files
