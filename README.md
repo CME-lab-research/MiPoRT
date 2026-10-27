@@ -5,6 +5,14 @@ This repository contains code and files to be shared for the research paper titl
 
 ## Conceptual overview
 
+<p align="center">
+  <img
+    src="Docs/Summary_drawing.png"
+    alt="Conceptual overview of the MiPoRT respiratory microbiome atlas"
+    width="1000"
+  >
+</p>
+
 ## Understanding the MiPoRT resource
 
 
